@@ -1,0 +1,627 @@
+// AGRI HUB — data model
+// Postgres-backed. Region is a table (not an enum) so new provinces/countries
+// are configuration, not code. PostGIS is optional: lat/lng are stored as
+// floats and distance sorting uses a haversine expression; switch to
+// geography(Point) columns when PostGIS is available in production.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  grower
+  buyer
+  university
+  consultant
+  edc
+  fcc
+  financing
+  bc_gov
+  fed_gov
+  agtech
+  sales_marketing
+  supplier
+  dealer
+  admin
+}
+
+enum UserStatus {
+  active
+  suspended
+}
+
+enum Approval {
+  pending
+  approved
+  rejected
+}
+
+enum ListingStatus {
+  draft
+  active
+  paused
+  sold_out
+  archived
+}
+
+enum ProduceCategory {
+  fruit
+  vegetable
+  berries
+  dairy
+  nursery
+  herbs
+  poultry_eggs
+  grains
+  value_added
+}
+
+enum RfqStatus {
+  open
+  quoted
+  accepted
+  declined
+  withdrawn
+}
+
+enum ResourceType {
+  grant
+  financing
+  program
+  course
+  research
+  service
+  product
+  export
+}
+
+enum EventType {
+  webinar
+  farm_tour
+  trade_show
+  course
+  meetup
+  workshop
+}
+
+enum ReportStatus {
+  open
+  resolved
+  dismissed
+}
+
+enum CertStatus {
+  pending
+  verified
+  rejected
+}
+
+model Region {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  name        String
+  province    String       @default("BC")
+  country     String       @default("CA")
+  description String?
+  specialties String[]
+  lat         Float?
+  lng         Float?
+  isActive    Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  profiles    Profile[]
+  listings    Listing[]
+  demands     DemandPost[]
+}
+
+model User {
+  id              String     @id @default(cuid())
+  email           String     @unique
+  phone           String?
+  passwordHash    String
+  role            Role
+  status          UserStatus @default(active)
+  emailVerifiedAt DateTime?
+  isVerified      Boolean    @default(false) // business / identity verified by admin
+  lastLoginAt     DateTime?
+  // security
+  sessionVersion  Int        @default(1) // bump to revoke every active session
+  failedLogins    Int        @default(0)
+  lockedUntil     DateTime?
+  totpSecret      String? // base32, set while enrolling / enabled
+  totpEnabled     Boolean    @default(false)
+  totpLastStep    Int? // last accepted 30s step — blocks code replay
+  passwordChangedAt DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  profile        Profile?
+  listings       Listing[]
+  favorites      Favorite[]
+  savedSearches  SavedSearch[]
+  participations ThreadParticipant[]
+  messages       Message[]
+  rfqsSent       Rfq[]              @relation("RfqBuyer")
+  rfqsReceived   Rfq[]              @relation("RfqGrower")
+  demandPosts    DemandPost[]
+  interests      ResourceInterest[]
+  rsvps          EventRsvp[]
+  posts          Post[]
+  comments       Comment[]
+  reactions      Reaction[]
+  reviewsWritten Review[]           @relation("ReviewAuthor")
+  reviewsAbout   Review[]           @relation("ReviewSubject")
+  reports        Report[]           @relation("Reporter")
+  notifications  Notification[]
+  tokens         Token[]
+  uploads        Upload[]
+  auditLogs      AuditLog[]
+  sessions       Session[]
+
+  @@index([role])
+}
+
+model Profile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slug           String   @unique
+  orgName        String
+  contactName    String?
+  tagline        String?
+  bio            String?
+  photoUrl       String?
+  coverUrl       String?
+  website        String?
+  publicEmail    String?
+  publicPhone    String?
+  address        String?
+  city           String?
+  regionId       String?
+  region         Region?  @relation(fields: [regionId], references: [id])
+  lat            Float?
+  lng            Float?
+  certifications String[]
+  specialties    String[]
+  buyerType      String? // retail | food_service | processor | export
+  farmSizeAcres  Float?
+  approval       Approval @default(pending)
+  isFeatured     Boolean  @default(false)
+  // false = directory entry compiled by GRIS Canada from public info; the real organisation can claim it
+  isClaimed      Boolean  @default(true)
+  views          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  certDocs  CertificationDoc[]
+  resources Resource[]
+  events    Event[]
+
+  @@index([regionId])
+}
+
+model CertificationDoc {
+  id          String     @id @default(cuid())
+  profileId   String
+  profile     Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  type        String // organic | buy_bc | canadagap | haccp | other
+  documentUrl String
+  expiresAt   DateTime?
+  status      CertStatus @default(pending)
+  reviewNote  String?
+  createdAt   DateTime   @default(now())
+}
+
+model Listing {
+  id              String          @id @default(cuid())
+  slug            String          @unique
+  growerId        String
+  grower          User            @relation(fields: [growerId], references: [id], onDelete: Cascade)
+  title           String
+  produce         String
+  variety         String?
+  category        ProduceCategory
+  description     String?
+  volume          Float
+  unit            String // kg | lb | tonne | flat | case | dozen
+  minOrder        Float?
+  price           Float?
+  priceUnit       String?
+  pricingMethod   String          @default("fixed") // fixed | negotiable | market | rfq
+  harvestStart    DateTime?
+  harvestEnd      DateTime?
+  deliveryOptions String[] // pickup | delivery | shipping
+  deliveryArea    String?
+  pickupLocation  String?
+  regionId        String?
+  region          Region?         @relation(fields: [regionId], references: [id])
+  lat             Float?
+  lng             Float?
+  photos          String[]
+  certifications  String[] // snapshot of grower certifications at publish time
+  status          ListingStatus   @default(draft)
+  approval        Approval        @default(pending)
+  rejectionReason String?
+  lotCode         String          @unique
+  isFeatured      Boolean         @default(false)
+  views           Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  favorites Favorite[]
+  threads   Thread[]
+  rfqs      Rfq[]
+
+  @@index([status, approval])
+  @@index([category])
+  @@index([regionId])
+  @@index([growerId])
+}
+
+model Favorite {
+  userId    String
+  listingId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, listingId])
+}
+
+model SavedSearch {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  query          Json // { q, category[], region[], cert[] }
+  alert          Boolean   @default(true)
+  lastNotifiedAt DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+model Thread {
+  id           String              @id @default(cuid())
+  subject      String?
+  listingId    String?
+  listing      Listing?            @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  participants ThreadParticipant[]
+  messages     Message[]
+  rfqs         Rfq[]
+}
+
+model ThreadParticipant {
+  threadId   String
+  userId     String
+  thread     Thread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt DateTime?
+
+  @@id([threadId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body      String
+  kind      String   @default("text") // text | rfq | quote | system
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([threadId, createdAt])
+}
+
+model Rfq {
+  id           String    @id @default(cuid())
+  buyerId      String
+  buyer        User      @relation("RfqBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  growerId     String
+  grower       User      @relation("RfqGrower", fields: [growerId], references: [id], onDelete: Cascade)
+  listingId    String?
+  listing      Listing?  @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  threadId     String
+  thread       Thread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  quantity     Float
+  unit         String
+  deliveryDate DateTime?
+  targetPrice  Float?
+  notes        String?
+  status       RfqStatus @default(open)
+  quotePrice   Float?
+  quoteNotes   String?
+  respondedAt  DateTime?
+  closedAt     DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([growerId, status])
+  @@index([buyerId, status])
+}
+
+model DemandPost {
+  id          String          @id @default(cuid())
+  buyerId     String
+  buyer       User            @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  title       String
+  produce     String
+  category    ProduceCategory
+  quantity    Float
+  unit        String
+  frequency   String          @default("one_time") // one_time | weekly | monthly | seasonal
+  neededBy    DateTime?
+  targetPrice Float?
+  regionId    String?
+  region      Region?         @relation(fields: [regionId], references: [id])
+  details     String?
+  isOpen      Boolean         @default(true)
+  approval    Approval        @default(pending)
+  createdAt   DateTime        @default(now())
+
+  @@index([isOpen, approval])
+}
+
+model Resource {
+  id          String             @id @default(cuid())
+  profileId   String
+  profile     Profile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  type        ResourceType
+  title       String
+  summary     String
+  body        String?
+  eligibility String?
+  amount      String?
+  deadline    DateTime?
+  externalUrl String?
+  tags        String[]
+  approval    Approval           @default(pending)
+  isFeatured  Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  interests   ResourceInterest[]
+
+  @@index([type, approval])
+}
+
+model ResourceInterest {
+  id         String   @id @default(cuid())
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message    String?
+  status     String   @default("new") // new | contacted | closed
+  createdAt  DateTime @default(now())
+
+  @@unique([resourceId, userId])
+}
+
+model Event {
+  id            String      @id @default(cuid())
+  hostProfileId String?
+  host          Profile?    @relation(fields: [hostProfileId], references: [id], onDelete: SetNull)
+  title         String
+  description   String
+  type          EventType
+  startsAt      DateTime
+  endsAt        DateTime?
+  location      String?
+  onlineUrl     String?
+  capacity      Int?
+  coverUrl      String?
+  approval      Approval    @default(pending)
+  createdAt     DateTime    @default(now())
+  rsvps         EventRsvp[]
+}
+
+model EventRsvp {
+  eventId   String
+  userId    String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([eventId, userId])
+}
+
+model Space {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  name        String
+  description String?
+  icon        String?
+  sortOrder   Int     @default(0)
+  isLocked    Boolean @default(false) // only admins may post (announcements)
+  posts       Post[]
+}
+
+model Post {
+  id        String     @id @default(cuid())
+  spaceId   String
+  space     Space      @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title     String?
+  body      String
+  images    String[]
+  isPinned  Boolean    @default(false)
+  isHidden  Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  comments  Comment[]
+  reactions Reaction[]
+
+  @@index([spaceId, createdAt])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  isHidden  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Reaction {
+  postId    String
+  userId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([postId, userId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  authorId  String
+  author    User     @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  subjectId String
+  subject   User     @relation("ReviewSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+  rating    Int
+  body      String?
+  isHidden  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([authorId, subjectId])
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String
+  reporter   User         @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType String // listing | user | message | post | comment | review | demand | resource
+  targetId   String
+  reason     String
+  details    String?
+  status     ReportStatus @default(open)
+  resolution String?
+  resolvedAt DateTime?
+  createdAt  DateTime     @default(now())
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String?
+  link      String?
+  payload   Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+model EmailOutbox {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  html      String
+  text      String
+  provider  String   @default("console")
+  status    String   @default("sent")
+  createdAt DateTime @default(now())
+}
+
+model Token {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // verify_email | reset_password
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model Upload {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  contentType String
+  size        Int?
+  createdAt   DateTime @default(now())
+}
+
+// Analytics events that power the demand-signal chart and admin trends.
+model ActivityEvent {
+  id        String   @id @default(cuid())
+  type      String // listing_view | profile_view | inquiry | rfq | signup | search
+  userId    String?
+  listingId String?
+  profileId String?
+  ownerId   String? // the grower/partner who "owns" the viewed thing
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([type, createdAt])
+  @@index([ownerId, type, createdAt])
+}
+
+// Admin-configurable platform targets (5-year plan + 90/180-day traction goals).
+model KpiTarget {
+  key          String   @id
+  label        String
+  group        String // five_year | traction_90 | traction_180
+  metric       String? // auto metric key: growers, buyers, partners, listings, inquiries, transactions
+  targetValue  Float
+  targetLabel  String?
+  baseline     Float?
+  currentValue Float? // manual value when metric is null
+  unit         String?
+  sortOrder    Int      @default(0)
+  updatedAt    DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String?
+  targetId   String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+}
+
+model SiteSetting {
+  key   String @id
+  value Json
+}
+
+// Image/document bytes for STORAGE_DRIVER=db (simple hosting without S3/R2).
+model StoredFile {
+  key         String   @id
+  contentType String
+  size        Int
+  data        Bytes
+  createdAt   DateTime @default(now())
+}
+
+// Server-side session registry: each JWT carries a session id (jti) so a single
+// device can be signed out for real, and members can see/revoke their devices.
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  @@index([userId])
+}

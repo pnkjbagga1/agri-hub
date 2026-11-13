@@ -1,0 +1,12 @@
+import "dotenv/config"; import pg from "pg";
+const B="http://localhost:3100";
+const [email,pw]=process.argv.slice(2);
+const db=new pg.Client({connectionString:process.env.DATABASE_URL}); await db.connect();
+const r=await fetch(B+"/api/v1/auth/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email,password:pw,portal:"member"})});
+const ck=r.headers.getSetCookie().map(c=>c.split(";")[0]).join("; ");
+const t=await (await fetch(B+"/dashboard",{headers:{cookie:ck}})).text();
+const i=t.indexOf("Active listings"); const seg=t.slice(i, i+2500).replace(/<svg[\s\S]*?<\/svg>/g,"");
+const m=seg.match(/>(\d+)<\/p>/)||seg.match(/>(\d+)</); console.log("html active", m&&m[1], "hint", (seg.match(/(\d+) total/)||[])[0]);
+const u=(await db.query(`select id from "User" where email=$1`,[email])).rows[0];
+console.log("db active", (await db.query(`select count(*) from "Listing" where "growerId"=$1 and status='active'`,[u.id])).rows[0].count, "nonarchived", (await db.query(`select count(*) from "Listing" where "growerId"=$1 and status<>'archived'`,[u.id])).rows[0].count);
+await db.end();

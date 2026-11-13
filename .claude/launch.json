@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "agri-hub-db", "runtimeExecutable": "node", "runtimeArgs": ["scripts/db.mjs"], "port": 54329 },
+    { "name": "agri-hub", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 3000 }
+  ]
+}
