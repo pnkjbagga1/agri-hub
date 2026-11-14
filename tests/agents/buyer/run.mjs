@@ -35,8 +35,11 @@ const third = await login("harbour-table-restaurant-group@agrihub.test");
 const anon = session();
 const buyerId = await uid("buyer@agrihub.test"), growerId = await uid("grower@agrihub.test"), thirdId = await uid("harbour-table-restaurant-group@agrihub.test");
 const fcc = (await q(`select "userId" from "Profile" where slug='farm-credit-canada'`))[0].userId;
-const L1 = "cmwf7bpko001oqsjmjj0h3u7d", L2 = "cmwf7bpkr001pqsjmjxmec0z4";
-const L1slug = "frozen-blueberries-iqf-2026-crop-2";
+// the grower's active listings, looked up fresh (IDs change on every re-seed)
+const growerListings = await q(`select id, slug from "Listing" where "growerId"=$1 and status='active' order by "createdAt"`, [growerId]);
+const L1 = growerListings.find((l) => l.slug.startsWith("frozen-blueberries"))?.id ?? growerListings[0].id, L2 = growerListings.find((l) => l.id !== L1).id;
+const L1slug = growerListings.find((l) => l.id === L1).slug;
+const L3 = growerListings.find((l) => l.id !== L1 && l.id !== L2)?.id ?? L2;
 const only = process.argv[2];
 const run = (k) => !only || only.split(",").includes(k);
 
@@ -144,7 +147,7 @@ const future = new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10);
 const past = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10);
 const openOn = async (lid) => (await q(`select id from "Rfq" where "buyerId"=$1 and "listingId"=$2 and status in ('open','quoted')`, [buyerId, lid])).length;
 if (run("4")) {
-  const cands = [L1, L2, "cmwf7bpk9001nqsjmtfnux35c"];
+  const cands = [L1, L2, L3];
   let lid = null; for (const c of cands) if (!(await openOn(c))) { lid = c; break; }
   check("4pre listing without open RFQ found", !!lid, lid);
   const payload = { listingId: lid, quantity: 500, unit: "kg", deliveryDate: future, targetPrice: 4.5, notes: "QA rfq" };
@@ -191,9 +194,10 @@ if (run("4")) {
   check("4r buyer withdraws", r.status === 200 && r.json.status === "withdrawn", r.json);
   r = await buyer.req("POST", "/api/v1/rfqs", { ...payload, deliveryDate: past });
   check("4s past delivery date -> 422", r.status === 422, `status=${r.status}`);
-  const yday = new Date(Date.now() - 86400000 + 3600e3).toISOString();
+  // yesterday as a calendar date in Pacific time (the form sends YYYY-MM-DD)
+  const yday = new Date(Date.now() - 86400000).toLocaleDateString("en-CA", { timeZone: "America/Vancouver" });
   r = await buyer.req("POST", "/api/v1/rfqs", { ...payload, deliveryDate: yday });
-  check("4t delivery ~23h ago -> 422 (strict)", r.status === 422, `status=${r.status}`);
+  check("4t delivery yesterday (Pacific) -> 422", r.status === 422, `status=${r.status}`);
   if (r.status === 200) await buyer.req("POST", `/api/v1/rfqs/${r.json.rfqId}`, { action: "withdraw" });
   r = await grower.req("POST", "/api/v1/rfqs", { ...payload });
   check("4u RFQ on own listing -> 422", r.status === 422, `status=${r.status}`);
@@ -273,7 +277,7 @@ if (run("7")) {
   let r = await buyer.req("POST", `/api/v1/favorites/${L2}`);
   check("7a favourite", r.status === 200 && r.json.saved === true, r.json);
   const html = await buyer.req("GET", "/dashboard/saved");
-  check("7b /dashboard/saved lists it", html.status === 200 && html.text.includes("Floricane Raspberries"), `status=${html.status}`);
+  check("7b /dashboard/saved lists it", html.status === 200 && html.text.includes((await q(`select title from "Listing" where id=$1`, [L2]))[0].title.split(" — ")[0]), `status=${html.status}`);
   r = await buyer.req("DELETE", `/api/v1/favorites/${L2}`);
   check("7c unfavourite", r.status === 200 && r.json.saved === false);
   const n = await q(`select count(*)::int n from "Favorite" where "userId"=$1 and "listingId"=$2`, [buyerId, L2]);

@@ -113,7 +113,7 @@ export const zDate = z
   .optional()
   .transform((v) => v ?? null);
 /** media URLs must come from our own storage, never arbitrary hosts */
-const MEDIA_RE = /^\/(media\/[a-z]+\/\d{4}\/\d{2}\/[a-z0-9-]+\.(?:jpg|png|webp|avif)|seed\/[a-z0-9-]+\.svg)$/;
+const MEDIA_RE = /^\/(media\/[a-z]+\/\d{4}\/\d{2}\/[a-z0-9-]+\.(?:jpg|png|webp|avif)|seed\/(?:[a-z0-9-]+\.svg|photos\/[a-z0-9-]+\.jpg))$/;
 export const zMedia = z
   .string()
   .max(600)

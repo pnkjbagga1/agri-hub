@@ -81,11 +81,12 @@ export const MEMBER_ROLES: RoleKey[] = ["grower", "buyer"];
 export const PARTNER_ROLES: RoleKey[] = ["university", "consultant", "edc", "fcc", "financing", "bc_gov", "fed_gov", "agtech", "sales_marketing", "supplier", "dealer"];
 
 /** Directory filter tabs (spec screen 6). */
-export const DIRECTORY_TABS: { key: string; label: string; roles: RoleKey[]; buyerType?: string }[] = [
+export const DIRECTORY_TABS: { key: string; label: string; roles: RoleKey[]; buyerType?: string; notBuyerType?: string; cert?: string }[] = [
   { key: "all", label: "All", roles: [] },
   { key: "farmers", label: "Farmers", roles: ["grower"] },
-  { key: "buyers", label: "Buyers", roles: ["buyer"] },
+  { key: "buyers", label: "Buyers", roles: ["buyer"], notBuyerType: "processor" },
   { key: "processors", label: "Processors", roles: ["buyer"], buyerType: "processor" },
+  { key: "buy-bc", label: "Buy BC licensees", roles: [], cert: "buy_bc" },
   { key: "universities", label: "Universities", roles: ["university"] },
   { key: "consultants", label: "Consultants", roles: ["consultant"] },
   { key: "edc-fcc", label: "EDC / FCC", roles: ["edc", "fcc"] },

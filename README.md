@@ -130,3 +130,15 @@ scripts/db.mjs         local embedded PostgreSQL
 ## Out of scope for this MVP (per the GRIS plan)
 
 Payments / Stripe Connect, SMS, native mobile apps, multi-language (EN/Punjabi/FR is Phase 2), Elasticsearch/Algolia, bulk CSV upload, and a Calendly-style scheduler.
+
+## AI assistant
+
+`Ask AGRI HUB` (bottom-right on every public page) answers questions with Claude (`claude-opus-5-5`). It uses read-only tools over listings, the directory, Buy BC products, programs, events and buyer demand (`src/server/assistant.ts`). Set `ANTHROPIC_API_KEY` to enable AI answers. Without a key, or if the API is unavailable, it falls back to a keyword search over the same data. The endpoint is rate limited (20 questions per 10 minutes per user/IP).
+
+## Buy BC data
+
+`prisma/data/buybc.json` is generated from the Buy BC workbook (968 organisations, 10,413 products). `npm run db:seed` imports them as unclaimed directory entries with a `BuyBcProduct` catalogue.
+
+## Production seed
+
+Set `SEED_PASSWORD` when seeding any public database, so the demo accounts don't use the documented local password.

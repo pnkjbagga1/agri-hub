@@ -13,12 +13,14 @@ import { formatDate, formatNumber } from "@/lib/utils";
 
 export default async function HomePage() {
   const vis = await visibleApproval();
-  const [featured, programs, metrics, demand, events] = await Promise.all([
+  const [featured, programs, metrics, demand, events, buyBcProducts, buyBcOrgs] = await Promise.all([
     db.listing.findMany({ where: { status: "active", ...vis, grower: { status: "active" } }, include: listingCardInclude, orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }], take: 4 }),
     db.resource.findMany({ where: { approval: "approved" }, include: { profile: { select: { orgName: true, slug: true, photoUrl: true } } }, orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }], take: 4 }),
     platformMetrics(),
     db.demandPost.findMany({ where: { isOpen: true, ...vis }, include: { buyer: { select: { profile: { select: { orgName: true, buyerType: true } } } } }, orderBy: { createdAt: "desc" }, take: 3 }),
     db.event.findMany({ where: { approval: "approved", startsAt: { gte: new Date() } }, orderBy: { startsAt: "asc" }, take: 3 }),
+    db.buyBcProduct.count(),
+    db.profile.count({ where: { buyBcProducts: { some: {} } } }),
   ]);
 
   return (
@@ -73,6 +75,9 @@ export default async function HomePage() {
             <p className="mt-5 rounded-xl bg-highlight/15 p-4 text-sm text-white/90 ring-1 ring-highlight/30">
               <strong className="text-gold-soft">5-year goal:</strong> move BC vegetable import dependence from 77.1% toward 55–60%.
             </p>
+            <Link href="/buy-bc" className="mt-3 block rounded-xl bg-white/5 p-4 text-sm text-white/90 ring-1 ring-white/10 hover:bg-white/10">
+              <strong className="text-gold-soft">{formatNumber(buyBcProducts)} Buy BC products</strong> from {formatNumber(buyBcOrgs)} BC businesses — search the catalogue →
+            </Link>
           </div>
         </div>
       </section>

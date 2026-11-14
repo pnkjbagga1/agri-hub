@@ -116,24 +116,29 @@ export async function searchDirectory(opts: { tab?: string; q?: string; region?:
   const and: Prisma.ProfileWhereInput[] = [await visibleApproval(), { user: { status: "active", role: { not: "admin" } } }, { photoUrl: { not: null } }];
   if (tab.roles.length) and.push({ user: { role: { in: tab.roles } } });
   if (tab.buyerType) and.push({ buyerType: tab.buyerType });
+  if (tab.notBuyerType) and.push({ OR: [{ buyerType: null }, { buyerType: { not: tab.notBuyerType } }] });
+  if (tab.cert) and.push({ certifications: { has: tab.cert } });
   if (opts.region) and.push({ region: { slug: opts.region } });
   if (opts.q) {
     const q = opts.q.trim().slice(0, 80);
-    and.push({ OR: [{ orgName: { contains: q, mode: "insensitive" } }, { bio: { contains: q, mode: "insensitive" } }, { tagline: { contains: q, mode: "insensitive" } }, { specialties: { has: q.toLowerCase() } }, { city: { contains: q, mode: "insensitive" } }] });
+    and.push({ OR: [{ orgName: { contains: q, mode: "insensitive" } }, { bio: { contains: q, mode: "insensitive" } }, { tagline: { contains: q, mode: "insensitive" } }, { specialties: { has: q.toLowerCase() } }, { city: { contains: q, mode: "insensitive" } }, { buyBcProducts: { some: { name: { contains: q, mode: "insensitive" } } } }] });
   }
   const where = { AND: and };
   const page = Math.max(1, Math.floor(Number(opts.page)) || 1);
-  const [items, total, counts, processors] = await Promise.all([
-    db.profile.findMany({ where, select: profileCardSelect, orderBy: [{ isFeatured: "desc" }, { user: { isVerified: "desc" } }, { orgName: "asc" }], skip: (page - 1) * 36, take: 36 }),
+  const live = { photoUrl: { not: null }, user: { status: "active" as const } };
+  const [items, total, counts, processors, buyers, buyBc] = await Promise.all([
+    db.profile.findMany({ where, select: profileCardSelect, orderBy: [{ isFeatured: "desc" }, { isClaimed: "desc" }, { user: { isVerified: "desc" } }, { orgName: "asc" }], skip: (page - 1) * 36, take: 36 }),
     db.profile.count({ where }),
     db.user.groupBy({ by: ["role"], where: { status: "active", profile: { photoUrl: { not: null } } }, _count: true }),
     db.profile.count({ where: { buyerType: "processor", photoUrl: { not: null }, user: { status: "active", role: "buyer" } } }),
+    db.profile.count({ where: { ...live, user: { status: "active", role: "buyer" }, OR: [{ buyerType: null }, { buyerType: { not: "processor" } }] } }),
+    db.profile.count({ where: { ...live, certifications: { has: "buy_bc" } } }),
   ]);
   const roleCounts = Object.fromEntries(counts.map((c) => [c.role, c._count])) as Record<string, number>;
   const tabCounts = Object.fromEntries(
     DIRECTORY_TABS.map((t) => [
       t.key,
-      t.buyerType ? processors : t.roles.length ? t.roles.reduce((s, r) => s + (roleCounts[r] ?? 0), 0) : Object.entries(roleCounts).filter(([r]) => r !== "admin").reduce((s, [, n]) => s + n, 0),
+      t.cert ? buyBc : t.notBuyerType ? buyers : t.buyerType ? processors : t.roles.length ? t.roles.reduce((s, r) => s + (roleCounts[r] ?? 0), 0) : Object.entries(roleCounts).filter(([r]) => r !== "admin").reduce((s, [, n]) => s + n, 0),
     ]),
   );
   return { items, total, page, pages: Math.ceil(total / 36), tab: tab.key, tabCounts };
@@ -144,7 +149,7 @@ export async function platformMetrics() {
   const since30 = new Date(Date.now() - 30 * 86400000);
   const [exportBuyers, byRole, listings, activeListings, inquiries, rfqsAccepted, demand, resources, events, posts, threads30] = await Promise.all([
     db.profile.count({ where: { buyerType: "export", user: { status: "active", role: "buyer" } } }),
-    db.user.groupBy({ by: ["role"], _count: true, where: { status: "active" } }),
+    db.user.groupBy({ by: ["role"], _count: true, where: { status: "active", OR: [{ profile: { isClaimed: true } }, { profile: null }] } }),
     db.listing.count(),
     db.listing.count({ where: { status: "active", approval: { not: "rejected" } } }),
     db.thread.count(),

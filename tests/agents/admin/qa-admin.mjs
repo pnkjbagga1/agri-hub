@@ -57,20 +57,20 @@ const startedAt = new Date();
 
 /* ---------------- 1. Directory ---------------- */
 {
-  const tabs = ["", "farmers", "buyers", "processors", "universities", "consultants", "edc-fcc", "government", "agtech", "financing", "marketing", "suppliers", "dealers"];
+  const tabs = ["", "farmers", "buyers", "processors", "buy-bc", "universities", "consultants", "edc-fcc", "government", "agtech", "financing", "marketing", "suppliers", "dealers"];
   const roleMap = { farmers: ["grower"], buyers: ["buyer"], universities: ["university"], consultants: ["consultant"], "edc-fcc": ["edc", "fcc"], government: ["bc_gov", "fed_gov"], agtech: ["agtech"], financing: ["financing"], marketing: ["sales_marketing"], suppliers: ["supplier"], dealers: ["dealer"] };
   const bad = [], countIssues = [];
   for (const t of tabs) {
     const r = await req("GET", `/directory${t ? `?tab=${t}` : ""}`);
     if (r.status !== 200) bad.push(`${t || "all"}:${r.status}`);
     if (t && roleMap[t]) {
-      const [{ n }] = await q(`select count(*)::int n from "Profile" p join "User" u on u.id=p."userId" where u.status='active' and p."photoUrl" is not null and p.approval<>'rejected' and u.role::text = any($1)`, [roleMap[t]]);
+      const [{ n }] = await q(`select count(*)::int n from "Profile" p join "User" u on u.id=p."userId" where u.status='active' and p."photoUrl" is not null and p.approval<>'rejected' and u.role::text = any($1)${t === "buyers" ? ` and coalesce(p."buyerType",'') <> 'processor'` : ""}`, [roleMap[t]]);
       const m = r.text.match(new RegExp(`tab=${t}"[^>]*>[^<]*<!-- -->\\s*<span[^>]*>(\\d+)<`)) || r.text.match(new RegExp(`tab=${t}[^>]*>[^<]*<span[^>]*>(\\d+)<`));
       const label = m ? Number(m[1]) : null;
       if (label !== n) countIssues.push(`${t}: label=${label} db=${n}`);
     }
   }
-  check("1a /directory + 12 tabs return 200", bad.length === 0, bad.join(","));
+  check("1a /directory + 13 tabs return 200", bad.length === 0, bad.join(","));
   check("1b tab label counts match DB (visible profiles)", countIssues.length === 0, countIssues.join("; "));
   const s = await req("GET", "/directory?q=Sumas");
   check("1c ?q=Sumas finds Sumas Prairie Berry", s.status === 200 && s.text.includes("Sumas Prairie"));

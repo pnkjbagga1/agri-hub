@@ -1,6 +1,7 @@
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { getSettings } from "@/server/settings";
+import { Assistant } from "@/components/Assistant";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const settings = await getSettings();
@@ -15,6 +16,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       <SiteHeader />
       <main id="main">{children}</main>
       <SiteFooter />
+      <Assistant />
     </>
   );
 }

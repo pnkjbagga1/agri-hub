@@ -14,9 +14,17 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "@node-rs/argon2";
 import { PrismaClient, type Prisma } from "../src/generated/prisma/client";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { writePlaceholders } from "./placeholders";
 
-export const DEMO_PASSWORD = "AgriHub-Demo-2026";
+/** Real photo (public/seed/photos/<name>.jpg, see CREDITS.md) with the generated SVG as a fallback. */
+const photo = (name: string, fallback: string) => (existsSync(path.resolve("public/seed/photos", `${name}.jpg`)) ? `/seed/photos/${name}.jpg` : `/seed/${fallback}`);
+/** Unclaimed directory entries can never sign in: this is not a valid Argon2 hash, so verification always fails. */
+const NO_LOGIN = "!unclaimed-no-login";
+
+/** Local demo password. For any public deployment set SEED_PASSWORD so the demo accounts get a private password. */
+export const DEMO_PASSWORD = process.env.SEED_PASSWORD || "AgriHub-Demo-2026";
 
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
 
@@ -30,7 +38,7 @@ async function wipe() {
   const tables = [
     "ActivityEvent", "AuditLog", "Notification", "EmailOutbox", "Token", "Upload", "Report", "Review", "Reaction", "Comment", "Post", "Space",
     "EventRsvp", "Event", "ResourceInterest", "Resource", "DemandPost", "Rfq", "Message", "ThreadParticipant", "Thread", "SavedSearch", "Favorite",
-    "Listing", "CertificationDoc", "Profile", "User", "Region", "KpiTarget", "SiteSetting",
+    "Listing", "BuyBcProduct", "CertificationDoc", "Profile", "User", "Region", "KpiTarget", "SiteSetting",
   ];
   await db.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t}"`).join(", ")} RESTART IDENTITY CASCADE`);
 }
@@ -115,7 +123,7 @@ async function main() {
     const u = await db.user.create({
       data: {
         email,
-        passwordHash,
+        passwordHash: p.claimed === false ? NO_LOGIN : passwordHash,
         role: p.role,
         emailVerifiedAt: new Date(),
         isVerified: p.verified ?? false,
@@ -128,7 +136,7 @@ async function main() {
             tagline: p.tagline,
             bio: p.bio,
             photoUrl: `/seed/${avatar}`,
-            coverUrl: `/seed/cover-${(idx % 4) + 1}.svg`,
+            coverUrl: photo(`cover-${(idx % 6) + 1}`, `cover-${(idx % 4) + 1}.svg`),
             website: p.website,
             publicEmail: p.claimed === false ? null : email,
             city: p.city,
@@ -150,6 +158,61 @@ async function main() {
     });
     users[p.org] = { id: u.id, profileId: u.profile!.id, role: p.role, org: p.org, regionSlug: p.region, certs: p.certs ?? [] };
   }
+
+  /* ---------------- Buy BC licensees (Province of BC "Buy BC Licensed Products and Categories", as of 2025-03-03) ----------------
+   * All 968 organisations and 10,413 licensed products from the supplied workbook (prisma/data/buybc.json).
+   * They are UNCLAIMED directory entries (no login), labelled with their source, so each business can claim its profile. */
+  const buyBc = JSON.parse(readFileSync(path.resolve("prisma/data/buybc.json"), "utf8")) as { asOf: string; orgs: { name: string; products: [string, string][] }[] };
+  const FARM_CATS = new Set(["Fruits and Vegetables", "Dairy Products and Eggs", "Meat and Poultry", "Floriculture and Nursery Products", "Fish and Seafood", "Cereals and Grains", "Nuts and Seeds"]);
+  const FARM_NAME = /(farms?|orchards?|ranch|acres|gardens?|greenhouses?|berr(y|ies)|nurser(y|ies)|apiar(y|ies)|honey|hatchery|homestead|growers?|fields?|organics)/i;
+  const PROCESSOR_NAME = /(winery|wines?|cider|brew|distill|bakery|kitchen|foods?|meats|packers?|processing|ltd|inc|corp)/i;
+  const catSlug = (c: string) => c.toLowerCase().replace(/,/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const usedSlugs = new Set((await db.profile.findMany({ select: { slug: true } })).map((r) => r.slug));
+  const existingOrgs = new Set(people.map((p) => p.org.toLowerCase()));
+  const bbRows = buyBc.orgs.filter((o) => !existingOrgs.has(o.name.toLowerCase())).map((o, i) => {
+    const byCat = new Map<string, number>();
+    for (const [, c] of o.products) byCat.set(c, (byCat.get(c) ?? 0) + 1);
+    const cats = [...byCat.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
+    const main = cats[0] ?? "Other";
+    const isFarm = FARM_NAME.test(o.name) || (FARM_CATS.has(main) && !PROCESSOR_NAME.test(o.name));
+    let base = o.name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || `buy-bc-${i}`;
+    let slug = base;
+    for (let k = 2; usedSlugs.has(slug); k++) slug = `${base}-${k}`;
+    usedSlugs.add(slug);
+    const n = o.products.length;
+    const img = photo(`cat-${catSlug(main)}`, `cover-${(i % 4) + 1}.svg`);
+    return {
+      email: `unclaimed+buybc-${slug}@agrihub.invalid`,
+      role: (isFarm ? "grower" : "buyer") as Prisma.UserCreateInput["role"],
+      profile: {
+        slug,
+        orgName: o.name,
+        tagline: `Buy BC licensee · ${n} licensed product${n === 1 ? "" : "s"} · ${cats.slice(0, 2).join(" & ")}`,
+        bio: `Directory entry compiled by GRIS Canada from the Province of BC "Buy BC Licensed Products and Categories" list (as of March 3, 2025). ${o.name} is licensed to use the Buy BC logo on ${n} product${n === 1 ? "" : "s"} across ${cats.length} categor${cats.length === 1 ? "y" : "ies"}: ${cats.join(", ")}. Is this your business? Claim this profile to add photos, contact details and live listings.`,
+        photoUrl: img,
+        coverUrl: img,
+        certifications: ["buy_bc"],
+        specialties: cats.map((c) => c.toLowerCase()),
+        buyerType: isFarm ? null : "processor",
+        approval: "approved" as const,
+        isClaimed: false,
+      },
+      products: o.products,
+    };
+  });
+  const bbUsers = await db.user.createManyAndReturn({
+    data: bbRows.map((r) => ({ email: r.email, passwordHash: NO_LOGIN, role: r.role, emailVerifiedAt: null, createdAt: d(-200) })),
+    select: { id: true, email: true },
+  });
+  const uid = new Map(bbUsers.map((u) => [u.email, u.id]));
+  const bbProfiles = await db.profile.createManyAndReturn({
+    data: bbRows.map((r) => ({ ...r.profile, userId: uid.get(r.email)! })),
+    select: { id: true, slug: true },
+  });
+  const pid = new Map(bbProfiles.map((p) => [p.slug, p.id]));
+  const productRows = bbRows.flatMap((r) => r.products.map(([name, category]) => ({ profileId: pid.get(r.profile.slug)!, name, category })));
+  for (let i = 0; i < productRows.length; i += 2000) await db.buyBcProduct.createMany({ data: productRows.slice(i, i + 2000) });
+  console.log(`Buy BC: ${bbRows.length} licensee profiles, ${productRows.length} licensed products (as of ${buyBc.asOf}).`);
 
   const admin = await db.user.create({ data: { email: "admin@agrihub.test", passwordHash, role: "admin", emailVerifiedAt: new Date(), isVerified: true } });
 
@@ -209,7 +272,7 @@ async function main() {
         regionId: reg.id,
         lat: reg.lat + Math.sin(n) * 0.08,
         lng: reg.lng + Math.cos(n) * 0.12,
-        photos: [`/seed/${l.art}-1.svg`, `/seed/${l.art}-2.svg`],
+        photos: [photo(`${l.art}-1`, `${l.art}-1.svg`), photo(`${l.art}-2`, `${l.art}-2.svg`)],
         certifications: g.certs,
         status: l.status ?? "active",
         approval: l.approval ?? "approved",
@@ -302,7 +365,7 @@ async function main() {
     { title: "Greenhouse Tech Farm Tour", type: "farm_tour", start: d(35), location: "Bradner Road, Abbotsford", desc: "See LED inter-lighting and closed-loop irrigation in action.", host: "GreenGrow AgTech Solutions", capacity: 25 },
   ];
   for (const e of ev) {
-    const row = await db.event.create({ data: { title: e.title, type: e.type as Prisma.EventCreateInput["type"], startsAt: e.start, endsAt: new Date(e.start.getTime() + 2 * 3600000), location: e.location, onlineUrl: e.online ? "https://griscanada.org" : null, description: e.desc, capacity: e.capacity, hostProfileId: e.host ? users[e.host]!.profileId : null, approval: "approved", coverUrl: `/seed/cover-${(e.title.length % 4) + 1}.svg` } });
+    const row = await db.event.create({ data: { title: e.title, type: e.type as Prisma.EventCreateInput["type"], startsAt: e.start, endsAt: new Date(e.start.getTime() + 2 * 3600000), location: e.location, onlineUrl: e.online ? "https://griscanada.org" : null, description: e.desc, capacity: e.capacity, hostProfileId: e.host ? users[e.host]!.profileId : null, approval: "approved", coverUrl: photo(`event-${(e.title.length % 4) + 1}`, `cover-${(e.title.length % 4) + 1}.svg`) } });
     await db.eventRsvp.create({ data: { eventId: row.id, userId: grower.id } });
   }
 

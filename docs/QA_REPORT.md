@@ -8,6 +8,7 @@ Four independent QA agents tested the running app over HTTP, each in its own are
 | Grower & listings | `node tests/agents/grower/grower-qa.mjs` | all core PASS, 5 bugs | all PASS (one check in the script can't parse the stat card markup; the value is correct) |
 | Buyer, messaging & RFQ | `node tests/agents/buyer/run.mjs` | 89 PASS, 7 issues | **96/96** |
 | Partners, community & admin | `node tests/agents/admin/qa-admin.mjs` | 53/60 | **60/60** |
+| Every stakeholder type, with test inquiries | `node tests/agents/stakeholders/run.mjs` | 97/100 (3 script assumptions) | **100/100** |
 
 Note: check "8 TOTP" now "fails" by design. The test reuses the code it just used to enable two-factor, and replay protection rejects any code that was already used.
 
@@ -44,3 +45,19 @@ Also verified: a production `next build` succeeds, there's no horizontal overflo
 - The buyer dashboard "Quotes to review" counts every quoted RFQ.
 - New listings start as draft or active only, and an unknown region returns 422.
 - The RFQ delivery date is compared with "today" in Pacific time.
+
+## Stakeholder pass (all 15 account types)
+
+`tests/agents/stakeholders/run.mjs` signs up one fresh account per stakeholder type: grower; retail, processor and export buyers; university; consultant; EDC; FCC; financing; BC government; federal government; ag-tech; sales & marketing; supplier; dealer. Admins and anonymous visitors are covered too. Each persona runs its real journeys:
+
+- **Every type:** signup → photo upload → profile → dashboard; signing in only through its own portal (member vs partner vs admin).
+- **Buyers:** listing message → RFQ → the grower quotes → the buyer accepts → the buyer reviews; a demand post; each buyer type appears under the correct directory tab.
+- **Grower:** publishes a listing, gets notified of inquiries, replies, quotes, offers on demand, expresses interest in all 11 partner programs, and files a claim for a Buy BC profile.
+- **Partners:** each publishes a program (approved by admin) and sees the grower's interest under Leads. Suppliers and dealers can offer on buyer demand; other partner roles get a 403. The university hosts an event, and RSVPs stop at capacity.
+- **Directory safety:** unclaimed Buy BC entries can't receive messages and can't sign in.
+- **Assistant:** answers questions from visitors, growers, buyers and EDC with links into hub data.
+- **Admin:** console pages load, the claim is visible, moderation is audited, and email notifications are queued.
+
+## Buy BC data
+
+All of the supplied workbook (Province of BC "Buy BC Licensed Products and Categories", as of March 3, 2025) is imported: **968 organisations, 10,413 licensed products, 14 categories**. These numbers reconcile exactly with the workbook's Overview sheet. Each organisation is an unclaimed directory entry (no login, source labelled) with its full product list, plus a searchable catalogue at `/buy-bc`.

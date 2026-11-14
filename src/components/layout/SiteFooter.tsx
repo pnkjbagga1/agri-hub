@@ -5,7 +5,7 @@ import { asset } from "@/lib/paths";
 
 export function SiteFooter() {
   const cols = [
-    { title: "Marketplace", links: [["Browse produce", "/marketplace"], ["Demand board", "/demand"], ["Market insights", "/insights"], ["Map view", "/marketplace?view=map"]] },
+    { title: "Marketplace", links: [["Browse produce", "/marketplace"], ["Demand board", "/demand"], ["Market insights", "/insights"], ["Buy BC products", "/buy-bc"], ["Photo credits", "/credits"], ["Map view", "/marketplace?view=map"]] },
     { title: "Ecosystem", links: [["Stakeholder directory", "/directory"], ["Programs & funding", "/resources"], ["Events", "/events"], ["Community", "/community"]] },
     { title: "Join", links: [["Growers", "/signup?role=grower"], ["Buyers", "/signup?role=buyer"], ["Partners & programs", "/signup?role=finance"], ["Partner sign in", "/partners/login"]] },
     { title: "About", links: [["About AGRI HUB", "/about"], ["GRIS Canada", "https://griscanada.org/"], ["Privacy", "/about#privacy"], ["Terms", "/about#terms"]] },

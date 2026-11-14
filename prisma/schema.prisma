@@ -200,6 +200,7 @@ model Profile {
   certDocs  CertificationDoc[]
   resources Resource[]
   events    Event[]
+  buyBcProducts BuyBcProduct[]
 
   @@index([regionId])
 }
@@ -624,4 +625,16 @@ model Session {
   revokedAt  DateTime?
 
   @@index([userId])
+}
+
+/// Buy BC licensed products (source: Buy BC Licensed Products list, data as of 2025-03-03).
+model BuyBcProduct {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name      String
+  category  String
+
+  @@index([profileId])
+  @@index([category])
 }

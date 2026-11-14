@@ -37,14 +37,16 @@ export default async function ProfilePage({ params }: P) {
     await db.profile.update({ where: { id: p.id }, data: { views: { increment: 1 } } });
     await track("profile_view", { userId: viewer?.id, profileId: p.id, ownerId: p.userId });
   }
-  const [listings, resources, events, reviews, rating, traded] = await Promise.all([
+  const [listings, resources, events, reviews, rating, traded, buyBc] = await Promise.all([
     db.listing.findMany({ where: { growerId: p.userId, status: "active", ...(own || viewer?.role === "admin" ? { approval: { not: "rejected" as const } } : await visibleApproval()) }, include: listingCardInclude, orderBy: { createdAt: "desc" }, take: 9 }),
     db.resource.findMany({ where: { profileId: p.id, ...(own || viewer?.role === "admin" ? { approval: { not: "rejected" as const } } : { approval: "approved" as const }) }, orderBy: { createdAt: "desc" } }),
     db.event.findMany({ where: { hostProfileId: p.id, approval: "approved", startsAt: { gte: new Date() } }, orderBy: { startsAt: "asc" } }),
     db.review.findMany({ where: { subjectId: p.userId, isHidden: false }, include: { author: { select: { profile: { select: { orgName: true, slug: true, photoUrl: true } } } } }, orderBy: { createdAt: "desc" }, take: 10 }),
     ratingFor(p.userId),
     viewer && !own ? db.rfq.count({ where: { OR: [{ buyerId: viewer.id, growerId: p.userId }, { buyerId: p.userId, growerId: viewer.id }] } }) : 0,
+    db.buyBcProduct.findMany({ where: { profileId: p.id }, orderBy: [{ category: "asc" }, { name: "asc" }], select: { id: true, name: true, category: true } }),
   ]);
+  const buyBcByCat = Object.entries(Object.groupBy(buyBc, (b) => b.category)).sort((a, b) => (b[1]?.length ?? 0) - (a[1]?.length ?? 0));
   const next = `/directory/${p.slug}`;
   return (
     <div>
@@ -76,7 +78,8 @@ export default async function ProfilePage({ params }: P) {
         </div>
         {!p.isClaimed && (
           <Notice tone="warn" className="mt-6">
-            This directory entry was compiled by GRIS Canada from public information so growers can find this organisation. It is not managed by the organisation itself. Use their official website to contact them.
+            This directory entry was compiled by GRIS Canada from public information so growers can find this organisation. It is not managed by the organisation itself.{" "}
+            {p.website ? "Use their official website to contact them." : "If this is your business, claim the profile to add contact details, photos and live listings."}
           </Notice>
         )}
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_320px]">
@@ -92,6 +95,33 @@ export default async function ProfilePage({ params }: P) {
                 </div>
               )}
             </section>
+            {buyBc.length > 0 && (
+              <section id="buy-bc">
+                <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="text-2xl">Buy BC licensed products ({buyBc.length})</h2>
+                  <Link href="/buy-bc" className="text-sm font-semibold text-leaf hover:underline">
+                    Browse all Buy BC products
+                  </Link>
+                </div>
+                <div className="space-y-5">
+                  {buyBcByCat.map(([cat, items]) => (
+                    <div key={cat} className="card p-5">
+                      <h3 className="text-base font-bold">
+                        {cat} <span className="font-normal text-muted">· {items?.length}</span>
+                      </h3>
+                      <ul className="mt-3 grid gap-x-6 gap-y-1.5 text-sm text-ink-soft sm:grid-cols-2">
+                        {items?.map((it) => (
+                          <li key={it.id} className="min-w-0 break-words">
+                            {it.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-muted">Source: Province of BC, Buy BC Licensed Products and Categories list (as of March 3, 2025).</p>
+              </section>
+            )}
             {listings.length > 0 && (
               <section>
                 <h2 className="mb-4 text-2xl">Produce listings</h2>
@@ -193,7 +223,7 @@ export default async function ProfilePage({ params }: P) {
                 </p>
               )}
               {p.isClaimed && !viewer && <p className="text-sm text-muted">Sign in to see contact details.</p>}
-              <p className="text-xs text-muted">Member since {formatDate(p.user.createdAt, { month: "long", year: "numeric" })}</p>
+              <p className="text-xs text-muted">{p.isClaimed ? `Member since ${formatDate(p.user.createdAt, { month: "long", year: "numeric" })}` : "Directory entry · not yet claimed"}</p>
             </div>
             {p.certifications.length > 0 && (
               <div className="card p-5">

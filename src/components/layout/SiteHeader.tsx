@@ -10,6 +10,7 @@ export const NAV = [
   { href: "/marketplace", label: "Marketplace" },
   { href: "/demand", label: "Demand Board" },
   { href: "/directory", label: "Directory" },
+  { href: "/buy-bc", label: "Buy BC" },
   { href: "/resources", label: "Programs" },
   { href: "/events", label: "Events" },
   { href: "/community", label: "Community" },

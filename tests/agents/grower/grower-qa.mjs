@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import zlib from "node:zlib";
 
 const BASE = "http://localhost:3100";
-const PW = (readFileSync("prisma/seed.ts", "utf8").match(/DEMO_PASSWORD = "([^"]+)"/) || [])[1];
+const PW = (readFileSync("prisma/seed.ts", "utf8").match(/DEMO_PASSWORD = (?:process\.env\.SEED_PASSWORD \|\| )?"([^"]+)"/) || [])[1];
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await db.connect();
 const results = [];
