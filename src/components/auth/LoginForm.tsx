@@ -83,11 +83,11 @@ export function LoginForm({ portal }: { portal: Portal }) {
         {busy ? "Signing in…" : needTotp ? "Verify & sign in" : "Sign in"}
       </Button>
       <div className="flex justify-between text-sm">
-        <Link href="/forgot-password" className="font-semibold text-leaf hover:underline">
+        <Link href="/forgot-password" className="tap font-semibold text-leaf hover:underline">
           Forgot password?
         </Link>
         {portal !== "admin" && (
-          <Link href="/signup" className="text-muted hover:text-ink">
+          <Link href="/signup" className="tap text-muted hover:text-ink">
             New here? <span className="font-semibold text-leaf">Join free</span>
           </Link>
         )}

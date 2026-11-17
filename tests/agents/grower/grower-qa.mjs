@@ -182,7 +182,7 @@ rec("8e draft lot trace hidden from anon", dt.status === 404, `trace=${dt.status
 const gid = (await db.query(`select id from "User" where email=$1`, [email])).rows[0].id;
 const activeDb = Number((await db.query(`select count(*) from "Listing" where "growerId"=$1 and status='active'`, [gid])).rows[0].count);
 const dash = await g.req("GET", "/dashboard");
-const m = dash.text.replace(/<!-- -->/g, "").match(/Active listings<\/p>.{0,400}?>(\d+)</s) || dash.text.match(/Active listings[\s\S]{0,600}?>(\d+)</);
+const m = dash.text.replace(/<!-- -->/g, "").match(/Active listings<\/p>[\s\S]{0,3000}?<\/svg><\/span><\/div>[\s\S]{0,300}?>(\d+)</) || dash.text.match(/Active listings[\s\S]{0,600}?>(\d+)</);
 rec("9a Active listings count", m && Number(m[1]) === activeDb, `html=${m?.[1]} db=${activeDb}`);
 rec("9b My listings rows", dash.text.includes("My listings") && dash.text.includes(L.title) && dash.text.includes(Ldraft.title ?? `Draft ${UNIQ} plan`), "");
 

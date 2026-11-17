@@ -123,7 +123,7 @@ export default async function ListingPage({ params }: P) {
                 <Stars value={rating.avg} count={rating.count} />
               </div>
               {p.tagline && <p className="mt-2 text-sm text-muted">{p.tagline}</p>}
-              <Link href={`/directory/${p.slug}`} className="mt-3 inline-block text-sm font-semibold text-leaf hover:underline">View full profile & all listings →</Link>
+              <Link href={`/directory/${p.slug}`} className="tap mt-1 text-sm font-semibold text-leaf hover:underline">View full profile & all listings →</Link>
             </div>
           </div>
         </section>
@@ -132,7 +132,7 @@ export default async function ListingPage({ params }: P) {
           <div>
             <h2 className="flex items-center gap-2 text-xl"><QrIcon className="size-5 text-leaf" /> Lot traceability</h2>
             <p className="mt-1 text-sm text-muted">Lot <strong className="font-mono text-ink">{l.lotCode}</strong>. Scan or share the farm-to-buyer trace page for this lot.</p>
-            <Link href={`/trace/${l.lotCode}`} className="mt-2 inline-block text-sm font-semibold text-leaf hover:underline">Open trace page →</Link>
+            <Link href={`/trace/${l.lotCode}`} className="tap text-sm font-semibold text-leaf hover:underline">Open trace page →</Link>
           </div>
         </section>
       </div>

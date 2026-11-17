@@ -175,7 +175,7 @@ async function main() {
     const cats = [...byCat.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
     const main = cats[0] ?? "Other";
     const isFarm = FARM_NAME.test(o.name) || (FARM_CATS.has(main) && !PROCESSOR_NAME.test(o.name));
-    let base = o.name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || `buy-bc-${i}`;
+    const base = o.name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || `buy-bc-${i}`;
     let slug = base;
     for (let k = 2; usedSlugs.has(slug); k++) slug = `${base}-${k}`;
     usedSlugs.add(slug);
@@ -358,12 +358,15 @@ async function main() {
 
   /* ---------------- Events (incl. real GRIS programmes) ---------------- */
   const ev = [
-    { title: "Agri Innovation Challenge — National Finale", type: "trade_show", start: new Date("2027-04-14T15:00:00Z"), location: "University of Guelph, Ontario", desc: "GRIS Canada's Agri Innovation Challenge national finale. Two tracks: Early-Stage ($0–$500K revenue) and Growth-Stage ($500K+).", host: null },
-    { title: "AgriFest Canada 2027", type: "trade_show", start: new Date("2027-07-15T17:00:00Z"), location: "Dates & location TBA", desc: "GRIS Canada's summer festival of agri-food innovation — dates and location to be announced.", host: null },
     { title: "Winter Webinar: Selling to BC Grocery Buyers", type: "webinar", start: d(12), online: true, desc: "What retail buyers look for: pack specs, Buy BC, food-safety paperwork and pricing.", host: "Harvest Story Marketing" },
     { title: "CanadaGAP Prep Workshop (Abbotsford)", type: "workshop", start: d(21), location: "Abbotsford, BC", desc: "Half-day hands-on workshop to get your records audit-ready.", host: "Fraser Valley Agri Consulting", capacity: 30 },
     { title: "Greenhouse Tech Farm Tour", type: "farm_tour", start: d(35), location: "Bradner Road, Abbotsford", desc: "See LED inter-lighting and closed-loop irrigation in action.", host: "GreenGrow AgTech Solutions", capacity: 25 },
   ];
+  // Real GRIS Canada events (details, banners and posters from GRIS's own event materials)
+  const grisEvents = JSON.parse(readFileSync(path.resolve("prisma/data/gris-events.json"), "utf8")) as { title: string; type: string; startsAt: string; timeZone: string; dateNote?: string; location: string; coverUrl: string; posterUrl: string; description: string }[];
+  for (const g of grisEvents) {
+    await db.event.create({ data: { title: g.title, type: g.type as Prisma.EventCreateInput["type"], startsAt: new Date(g.startsAt), timeZone: g.timeZone, dateNote: g.dateNote ?? null, location: g.location, description: g.description, coverUrl: g.coverUrl, posterUrl: g.posterUrl, approval: "approved" } });
+  }
   for (const e of ev) {
     const row = await db.event.create({ data: { title: e.title, type: e.type as Prisma.EventCreateInput["type"], startsAt: e.start, endsAt: new Date(e.start.getTime() + 2 * 3600000), location: e.location, onlineUrl: e.online ? "https://griscanada.org" : null, description: e.desc, capacity: e.capacity, hostProfileId: e.host ? users[e.host]!.profileId : null, approval: "approved", coverUrl: photo(`event-${(e.title.length % 4) + 1}`, `cover-${(e.title.length % 4) + 1}.svg`) } });
     await db.eventRsvp.create({ data: { eventId: row.id, userId: grower.id } });

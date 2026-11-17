@@ -36,6 +36,17 @@ export function formatDate(d: Date | string | null | undefined, opts: Intl.DateT
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Vancouver", ...opts }).format(new Date(d));
 }
 
+/** Date + time line for an event, in the event's own time zone (or its "dates TBA" note). */
+export function eventWhen(e: { startsAt: Date; endsAt?: Date | null; timeZone?: string | null; dateNote?: string | null }) {
+  if (e.dateNote) return { date: e.dateNote, time: null as string | null };
+  const timeZone = e.timeZone || "America/Vancouver";
+  const t = (d: Date, zone = false) => new Intl.DateTimeFormat("en-CA", { timeZone, hour: "numeric", minute: "2-digit", ...(zone ? { timeZoneName: "short" } : {}) }).format(d);
+  return {
+    date: new Intl.DateTimeFormat("en-CA", { timeZone, weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(e.startsAt),
+    time: e.endsAt ? `${t(e.startsAt)} – ${t(e.endsAt, true)}` : t(e.startsAt, true),
+  };
+}
+
 export function formatDateTime(d: Date | string | null | undefined) {
   return formatDate(d, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }

@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { listingCardInclude, platformMetrics } from "@/server/queries";
 import { visibleApproval } from "@/server/settings";
 import { ListingCard } from "@/components/listings/ListingCard";
+import { MarketplaceExplorer } from "@/components/home/MarketplaceExplorer";
+import { FarmJourney } from "@/components/home/FarmJourney";
 import { ButtonLink, Pill, SectionHeader } from "@/components/ui";
 import { RESOURCE_LABEL, CATEGORY_LABEL, EIGHT_DOORS } from "@/lib/constants";
 import { asset } from "@/lib/paths";
@@ -13,7 +15,7 @@ import { formatDate, formatNumber } from "@/lib/utils";
 
 export default async function HomePage() {
   const vis = await visibleApproval();
-  const [featured, programs, metrics, demand, events, buyBcProducts, buyBcOrgs] = await Promise.all([
+  const [featured, programs, metrics, demand, events, buyBcProducts, buyBcOrgs, byRole] = await Promise.all([
     db.listing.findMany({ where: { status: "active", ...vis, grower: { status: "active" } }, include: listingCardInclude, orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }], take: 4 }),
     db.resource.findMany({ where: { approval: "approved" }, include: { profile: { select: { orgName: true, slug: true, photoUrl: true } } }, orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }], take: 4 }),
     platformMetrics(),
@@ -21,10 +23,22 @@ export default async function HomePage() {
     db.event.findMany({ where: { approval: "approved", startsAt: { gte: new Date() } }, orderBy: { startsAt: "asc" }, take: 3 }),
     db.buyBcProduct.count(),
     db.profile.count({ where: { buyBcProducts: { some: {} } } }),
+    // signed-up members per role (unclaimed directory entries don't count)
+    db.user.groupBy({ by: ["role"], where: { status: "active", profile: { isClaimed: true } }, _count: { _all: true } }),
   ]);
+  const roleCount = Object.fromEntries(byRole.map((r) => [r.role, r._count._all])) as Record<string, number>;
+  const sum = (...roles: string[]) => roles.reduce((n, r) => n + (roleCount[r] ?? 0), 0);
+  const explorerCounts = {
+    grower: sum("grower"), buyer: sum("buyer"), university: sum("university"), consultant: sum("consultant"),
+    finance: sum("edc", "fcc", "financing"), government: sum("bc_gov", "fed_gov"), agtech: sum("agtech"),
+    sales_marketing: sum("sales_marketing"), supplier: sum("supplier", "dealer"),
+  };
 
   return (
     <>
+      {/* FARM JOURNEY — a season on a BC farm, animated step by step */}
+      <FarmJourney />
+
       {/* HERO — mirrors griscanada.org/hub */}
       <section className="bg-primary text-white">
         <div className="container-page grid items-center gap-12 py-14 lg:grid-cols-[1.2fr_.8fr] lg:py-20">
@@ -80,6 +94,14 @@ export default async function HomePage() {
             </Link>
           </div>
         </div>
+      </section>
+
+      {/* HOW THE MARKETPLACE WORKS — interactive ecosystem map */}
+      <section className="container-page py-14" id="how-it-works">
+        <p className="eyebrow text-leaf!">How the marketplace works</p>
+        <h2 className="mt-2 text-3xl sm:text-[2.8rem]">One hub. Every stakeholder.</h2>
+        <p className="mt-3 mb-8 max-w-2xl text-muted">Tap a stakeholder to see what they do on the Hub and who they connect with, or play a sample deal and watch BC berries go from farm to buyer.</p>
+        <MarketplaceExplorer counts={explorerCounts} />
       </section>
 
       {/* EIGHT DOORS — same structure as griscanada.org/hub */}
@@ -163,8 +185,8 @@ export default async function HomePage() {
             {events.map((e) => (
               <Link key={e.id} href={`/events/${e.id}`} className="card flex items-center gap-4 p-4 transition hover:shadow-[var(--shadow-lift)]">
                 <div className="grid size-14 shrink-0 place-items-center rounded-xl bg-primary-soft text-center text-primary">
-                  <span className="text-[11px] font-bold uppercase">{formatDate(e.startsAt, { month: "short" })}</span>
-                  <span className="-mt-2 font-display text-xl font-bold">{formatDate(e.startsAt, { day: "numeric" })}</span>
+                  <span className="text-[11px] font-bold uppercase">{e.dateNote ? "Date" : formatDate(e.startsAt, { month: "short", timeZone: e.timeZone })}</span>
+                  <span className={e.dateNote ? "-mt-1 text-sm font-bold" : "-mt-2 font-display text-xl font-bold"}>{e.dateNote ? "TBA" : formatDate(e.startsAt, { day: "numeric", timeZone: e.timeZone })}</span>
                 </div>
                 <div className="min-w-0">
                   <p className="truncate font-semibold">{e.title}</p>

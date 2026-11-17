@@ -20,7 +20,7 @@ export default async function ResourceDetail({ params }: { params: Promise<{ id:
   return (
     <div className="container-page grid max-w-6xl gap-8 py-10 lg:grid-cols-[1fr_340px]">
       <div>
-        <Link href="/resources" className="text-sm font-semibold text-leaf hover:underline">
+        <Link href="/resources" className="tap text-sm font-semibold text-leaf hover:underline">
           ← Programs hub
         </Link>
         {r.approval !== "approved" && <Notice tone="warn" className="mt-4">Status: {r.approval}. Visible to you and moderators only.</Notice>}
@@ -56,7 +56,7 @@ export default async function ResourceDetail({ params }: { params: Promise<{ id:
           <p className="text-sm text-muted">{r._count.interests} member(s) interested</p>
           {!own && <InterestButton resourceId={r.id} signedIn={!!user} next={`/resources/${r.id}`} already={!!mine} externalUrl={r.externalUrl} />}
           {r.externalUrl && !mine && (
-            <a href={r.externalUrl} target="_blank" rel="noopener noreferrer" className="block text-sm font-semibold text-leaf hover:underline">
+            <a href={r.externalUrl} target="_blank" rel="noopener noreferrer" className="tap text-sm font-semibold text-leaf hover:underline">
               Official program page ↗
             </a>
           )}

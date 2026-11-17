@@ -5,6 +5,8 @@ import { BarList, LineChart } from "@/components/charts";
 import { PageHeader, Progress, StatCard } from "@/components/ui";
 import { CATEGORY_LABEL, ROLE_LABELS, type RoleKey } from "@/lib/constants";
 import { formatNumber } from "@/lib/utils";
+import { requireAdmin } from "@/server/guards";
+import { SecurityPrompt } from "@/components/security/SecurityPrompt";
 
 export const metadata = { title: "Overview" };
 
@@ -14,6 +16,7 @@ function current(k: { metric: string | null; currentValue: number | null }, m: M
 }
 
 export default async function AdminOverview() {
+  const me = await requireAdmin();
   const [m, kpis, signups, inquiries, transactions, byCategory, byRegion] = await Promise.all([
     platformMetrics(),
     db.kpiTarget.findMany({ orderBy: [{ group: "asc" }, { sortOrder: "asc" }] }),
@@ -32,6 +35,7 @@ export default async function AdminOverview() {
   ];
   return (
     <>
+      <SecurityPrompt role={me.role} emailVerified={!!me.emailVerifiedAt} twoFactor={me.totpEnabled} />
       <PageHeader eyebrow="Admin" title="Platform overview" subtitle="Live KPIs from the database, tracked against the configurable targets from the GRIS Canada Action Plan." actions={<Link href="/admin/kpis" className="rounded-full bg-white px-4 py-2 text-sm font-semibold ring-1 ring-line">Edit targets</Link>} />
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-6">
         <StatCard label="Growers" value={m.growers} />

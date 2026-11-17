@@ -6,6 +6,7 @@ import { KeyRound, LogOut, MailCheck, ShieldCheck, Smartphone } from "lucide-rea
 import { Button, Notice } from "@/components/ui";
 import { Field, FormError } from "@/components/forms";
 import { api, ClientApiError } from "@/lib/client";
+import { PasswordInput } from "@/components/security/PasswordInput";
 
 const msg = (e: unknown) => (e instanceof ClientApiError ? e.message : "Something went wrong.");
 
@@ -38,7 +39,7 @@ export function ChangePassword() {
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="New password" error={state.fields?.password} hint="10+ characters, letters and numbers">
-          <input name="password" type="password" required minLength={10} autoComplete="new-password" className="input" />
+          <PasswordInput />
         </Field>
         <Field label="Confirm new password" error={state.fields?.confirm}>
           <input name="confirm" type="password" required minLength={10} autoComplete="new-password" className="input" />

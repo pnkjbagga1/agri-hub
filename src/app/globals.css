@@ -90,3 +90,10 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Text links that stand alone (back links, "view profile →") get a 44px touch target. */
+@utility tap {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}

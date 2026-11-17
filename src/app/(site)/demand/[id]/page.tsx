@@ -19,7 +19,7 @@ export default async function DemandDetail({ params }: { params: Promise<{ id: s
   const own = user?.id === d.buyerId;
   return (
     <div className="container-page max-w-4xl py-10">
-      <Link href="/demand" className="text-sm font-semibold text-leaf hover:underline">
+      <Link href="/demand" className="tap text-sm font-semibold text-leaf hover:underline">
         ← Demand board
       </Link>
       {!d.isOpen && <Notice className="mt-4">This request is closed.</Notice>}

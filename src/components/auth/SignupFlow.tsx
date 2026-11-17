@@ -11,6 +11,7 @@ import { Field, FormError } from "@/components/forms";
 import { api, ClientApiError } from "@/lib/client";
 import { BUYER_TYPES, ROLE_CARDS, ROLE_LABELS, type RoleKey } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { PasswordInput } from "@/components/security/PasswordInput";
 
 type Region = { id: string; name: string };
 
@@ -146,7 +147,7 @@ export function SignupFlow({ regions, initialCard }: { regions: Region[]; initia
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Password" required error={fields.password} hint="10+ characters, letters and numbers">
-          <input name="password" type="password" required minLength={10} className="input" autoComplete="new-password" />
+          <PasswordInput />
         </Field>
         <Field label="Confirm password" required error={fields.confirm}>
           <input name="confirm" type="password" required minLength={10} className="input" autoComplete="new-password" />

@@ -23,7 +23,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
   const liked = user ? !!(await db.reaction.findUnique({ where: { postId_userId: { postId: p.id, userId: user.id } } })) : false;
   return (
     <div className="container-page max-w-3xl py-10">
-      <Link href={`/community/${p.space.slug}`} className="text-sm font-semibold text-leaf hover:underline">
+      <Link href={`/community/${p.space.slug}`} className="tap text-sm font-semibold text-leaf hover:underline">
         ← {p.space.name}
       </Link>
       <article className="card mt-4 p-6">

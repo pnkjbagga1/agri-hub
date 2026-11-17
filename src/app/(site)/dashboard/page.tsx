@@ -11,6 +11,7 @@ import { ButtonLink, EmptyState, Pill, StatCard } from "@/components/ui";
 import { PARTNER_ROLES, RESOURCE_LABEL, type RoleKey } from "@/lib/constants";
 import { formatDate, formatMoney, formatNumber, timeAgo } from "@/lib/utils";
 import type { SessionUser } from "@/server/session";
+import { SecurityPrompt } from "@/components/security/SecurityPrompt";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -287,7 +288,13 @@ async function PartnerDashboard({ user }: { user: SessionUser }) {
 
 export default async function DashboardPage() {
   const user = await requireOnboarded();
-  if (user.role === "grower") return <GrowerDashboard user={user} />;
-  if (PARTNER_ROLES.includes(user.role as RoleKey)) return <PartnerDashboard user={user} />;
-  return <BuyerDashboard user={user} />;
+  const body = user.role === "grower" ? <GrowerDashboard user={user} /> : PARTNER_ROLES.includes(user.role as RoleKey) ? <PartnerDashboard user={user} /> : <BuyerDashboard user={user} />;
+  return (
+    <>
+      <div className="container-page pt-6 empty:hidden">
+        <SecurityPrompt role={user.role} emailVerified={!!user.emailVerifiedAt} twoFactor={user.totpEnabled} />
+      </div>
+      {body}
+    </>
+  );
 }

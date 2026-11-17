@@ -1,19 +1,35 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCheck, FileText, Send, BadgeDollarSign, Info } from "lucide-react";
+import { CheckCheck, FileText, Send, BadgeDollarSign, Info, ShieldAlert, Lock } from "lucide-react";
 import { api, ClientApiError } from "@/lib/client";
 import { cn, formatDateTime } from "@/lib/utils";
+import { messageRisks, type Risk } from "@/lib/safety";
 
 type Msg = { id: string; body: string; kind: string; createdAt: string; senderId: string };
 
 /** Live conversation: optimistic send + polling every 4s (swap for WebSockets/Pusher at scale). */
+/** Warns the reader when a received message looks like a scam or asks for sensitive details. */
+function ReaderWarning({ body }: { body: string }) {
+  const r = messageRisks(body);
+  if (!r.length) return null;
+  return (
+    <p className="mt-2 flex gap-1.5 rounded-lg bg-danger-soft px-2.5 py-1.5 text-xs text-danger">
+      <ShieldAlert className="mt-px size-3.5 shrink-0" />
+      <span>
+        Be careful: this message {r.map((x) => x.label).join(" and ")}. AGRI HUB never asks for payment or passwords in chat. If it seems wrong, don&apos;t reply and contact us.
+      </span>
+    </p>
+  );
+}
+
 export function ThreadView({ threadId, me, initial, initialOtherRead, names }: { threadId: string; me: string; initial: Msg[]; initialOtherRead: string | null; names: Record<string, string> }) {
   const [messages, setMessages] = useState<Msg[]>(initial);
   const [otherRead, setOtherRead] = useState<string | null>(initialOtherRead);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [risks, setRisks] = useState<Risk[] | null>(null); // a "before you send" check is open
   const end = useRef<HTMLDivElement>(null);
   const last = useRef(initial.at(-1)?.createdAt ?? null);
 
@@ -47,9 +63,16 @@ export function ThreadView({ threadId, me, initial, initialOtherRead, names }: {
     };
   }, [threadId]);
 
-  async function send() {
+  async function send(confirmed = false) {
     const body = text.trim();
     if (!body) return;
+    // Security prompt: stop and double-check messages that look like scams or contain sensitive data.
+    const found = messageRisks(body);
+    if (found.length && !confirmed) {
+      setRisks(found);
+      return;
+    }
+    setRisks(null);
     setSending(true);
     setError(null);
     try {
@@ -91,6 +114,7 @@ export function ThreadView({ threadId, me, initial, initialOtherRead, names }: {
                   </p>
                 )}
                 <p className="whitespace-pre-line">{m.body}</p>
+                {!mine && m.kind === "text" && <ReaderWarning body={m.body} />}
                 <p className={cn("mt-1 text-[11px]", mine ? "text-white/60" : "text-muted")}>
                   {formatDateTime(m.createdAt)}
                   {mine && m.id === lastMine?.id && otherRead && new Date(otherRead) >= new Date(m.createdAt) && (
@@ -105,6 +129,25 @@ export function ThreadView({ threadId, me, initial, initialOtherRead, names }: {
         })}
         <div ref={end} />
       </div>
+      {risks && (
+        <div className="border-t border-danger/30 bg-danger-soft p-3 text-sm" role="alertdialog" aria-labelledby="risk-title">
+          <p id="risk-title" className="flex items-center gap-1.5 font-bold text-danger">
+            <ShieldAlert className="size-4" /> Before you send: this message {risks.map((r) => r.label).join(" and ")}.
+          </p>
+          <p className="mt-1 text-ink-soft">Never share passwords, card or bank details, or your SIN in chat. AGRI HUB will never ask you to pay or verify your account in a message. Agree payment terms on an invoice with someone you trust.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" onClick={() => setRisks(null)} className="min-h-11 rounded-full bg-primary px-4 font-semibold text-white">
+              Edit message
+            </button>
+            <button type="button" onClick={() => send(true)} className="min-h-11 rounded-full px-4 font-semibold text-danger ring-1 ring-danger/40">
+              Send anyway
+            </button>
+          </div>
+        </div>
+      )}
+      <p className="flex items-center gap-1.5 border-t border-line bg-sand/50 px-4 py-1.5 text-xs text-muted">
+        <Lock className="size-3.5 shrink-0" /> Stay safe: AGRI HUB never asks for passwords or payment in chat. Don&apos;t share bank or card details.
+      </p>
       <form
         className="flex items-end gap-2 border-t border-line bg-white p-3"
         onSubmit={(e) => {
@@ -114,7 +157,10 @@ export function ThreadView({ threadId, me, initial, initialOtherRead, names }: {
       >
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            if (risks) setRisks(null);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();

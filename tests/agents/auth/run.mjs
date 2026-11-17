@@ -158,10 +158,12 @@ const G = await signup("grower", { password: PWG });
   const l1 = await login(T.email, P);
   const wrongCode = String((Number(totp(s.j.secret)) + 500000) % 1e6).padStart(6, "0");
   const l2 = await login(T.email, P, "member", wrongCode);
-  const l3 = await login(T.email, P, "member", totp(s.j.secret));
+  // the code used to switch 2FA on can't be used again (replay protection), so sign in with the next window's code
+  const next = totp(s.j.secret, Date.now() + 30000);
+  const l3 = await login(T.email, P, "member", next);
   rec("8 TOTP", s.s === 200 && !!s.j.secret && badEn.s === 422 && en.s === 200 && l1.s === 200 && l1.j.needTotp === true && !l1.cookie && l2.s === 401 && l3.s === 200 && !!l3.cookie, [s.s, badEn.s, en.s, l1.j, !!l1.cookie, l2.s, l3.s]);
-  const l4 = await login(T.email, P, "member", totp(s.j.secret));
-  rec("8b (info) same TOTP code replay accepted", true, l4.s);
+  const l4 = await login(T.email, P, "member", next);
+  rec("8b same TOTP code cannot be replayed", l4.s === 401, l4.s);
 }
 // 9
 {

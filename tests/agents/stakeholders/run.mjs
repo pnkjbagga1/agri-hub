@@ -8,7 +8,7 @@ import zlib from "node:zlib";
 import { readFileSync } from "node:fs";
 
 const BASE = process.env.QA_BASE ?? "http://localhost:3100";
-const PW_ADMIN = (readFileSync("prisma/seed.ts", "utf8").match(/DEMO_PASSWORD = (?:process\.env\.SEED_PASSWORD \|\| )?"([^"]+)"/) || [])[1];
+const PW_ADMIN = process.env.QA_PASSWORD || (readFileSync("prisma/seed.ts", "utf8").match(/DEMO_PASSWORD = (?:process\.env\.SEED_PASSWORD \|\| )?"([^"]+)"/) || [])[1];
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await db.connect();
 const q = async (sql, params) => (await db.query(sql, params)).rows;

@@ -416,6 +416,12 @@ model Event {
   onlineUrl     String?
   capacity      Int?
   coverUrl      String?
+  /// Full event poster / flyer shown on the event page
+  posterUrl     String?
+  /// IANA zone the event's times are shown in (e.g. America/Toronto for an Ontario event)
+  timeZone      String      @default("America/Vancouver")
+  /// Shown instead of the exact date/time while dates are still to be announced (e.g. "Summer 2027 · dates TBA")
+  dateNote      String?
   approval      Approval    @default(pending)
   createdAt     DateTime    @default(now())
   rsvps         EventRsvp[]

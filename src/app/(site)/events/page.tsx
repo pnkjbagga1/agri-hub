@@ -42,8 +42,8 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
             <Link key={e.id} href={`/events/${e.id}`} className="card group flex flex-col overflow-hidden transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-lift)]">
               <div className="relative h-36 bg-sand" style={e.coverUrl ? { backgroundImage: `url(${asset(e.coverUrl)})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
                 <div className="absolute top-3 left-3 grid size-14 place-items-center rounded-xl bg-white text-center shadow">
-                  <span className="text-[11px] font-bold text-danger uppercase">{formatDate(e.startsAt, { month: "short" })}</span>
-                  <span className="-mt-2 text-xl font-black">{formatDate(e.startsAt, { day: "numeric" })}</span>
+                  <span className="text-[11px] font-bold text-danger uppercase">{e.dateNote ? "Date" : formatDate(e.startsAt, { month: "short", timeZone: e.timeZone })}</span>
+                  <span className={e.dateNote ? "-mt-1 text-sm font-black" : "-mt-2 text-xl font-black"}>{e.dateNote ? "TBA" : formatDate(e.startsAt, { day: "numeric", timeZone: e.timeZone })}</span>
                 </div>
               </div>
               <div className="flex flex-1 flex-col p-5">

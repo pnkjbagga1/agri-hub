@@ -14,9 +14,9 @@ export function SiteFooter() {
     <footer className="mt-24 bg-ink text-white/80">
       <div className="container-page grid gap-10 py-14 md:grid-cols-[1.4fr_repeat(4,1fr)]">
         <div>
-          <div className="inline-block rounded-2xl bg-white p-3">
-            <Image src={asset("/brand/GRIS_Logo_Wordmark.png")} alt="GRIS — Green Revolution Innovation Society" width={160} height={74} className="h-auto w-40" />
-          </div>
+          <Link href="/" className="inline-block" aria-label="GRIS Canada Agri Hub — home">
+            <Image src={asset("/brand/gris-logo-footer.png")} alt="GRIS Canada, Green Revolution Innovation Society" width={600} height={200} className="h-auto w-64" />
+          </Link>
           <p className="mt-4 max-w-xs text-sm leading-relaxed">AGRI HUB is GRIS Canada&apos;s sector-development and connection platform for BC&apos;s agri-food ecosystem — starting in Abbotsford, built to grow across Canada and beyond.</p>
           <p className="mt-3 text-xs tracking-wide text-highlight">{TAGLINE}</p>
         </div>

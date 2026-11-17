@@ -32,7 +32,7 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
   const names = Object.fromEntries(t.participants.map((p) => [p.userId, p.user.profile?.orgName ?? "GRIS Canada"]));
   return (
     <div className="container-page py-8">
-      <Link href="/messages" className="text-sm font-semibold text-leaf hover:underline">
+      <Link href="/messages" className="tap text-sm font-semibold text-leaf hover:underline">
         ← All messages
       </Link>
       <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_320px]">

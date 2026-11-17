@@ -174,7 +174,7 @@ async function runTool(name: string, input: Record<string, unknown>): Promise<un
         orderBy: { startsAt: "asc" },
         include: { host: { select: { orgName: true } } },
       });
-      return rows.map((e) => ({ title: e.title, type: e.type, date: fmtDate(e.startsAt), location: e.location ?? (e.onlineUrl ? "Online" : null), host: e.host?.orgName, link: `/events/${e.id}` }));
+      return rows.map((e) => ({ title: e.title, type: e.type, date: e.dateNote ?? e.startsAt.toLocaleString("en-CA", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: e.timeZone, timeZoneName: "short" }), location: e.location ?? (e.onlineUrl ? "Online" : null), host: e.host?.orgName, link: `/events/${e.id}` }));
     }
     case "search_demand": {
       const rows = await db.demandPost.findMany({
@@ -242,13 +242,21 @@ export async function answer(history: ChatTurn[]): Promise<AssistantReply> {
 
 /* ---------- Keyword fallback (no API key or API unavailable) ---------- */
 const STOP = new Set("a an and any are can do does find for from get have how i in is it me my near of on or show the to what where which who with you your there looking need want buy sell sellers suppliers supplier please".split(" "));
+// Words that describe *who* rather than *what*; searched only when nothing more specific is in the question.
+const GENERIC = new Set("maker makers producer producers farm farms farmer farmers grower growers company companies business businesses products product local fresh organic wholesale bulk".split(" "));
+const stem = (w: string) => w.replace(/ies\b/g, "").replace(/oes\b/g, "o").replace(/(?<![su])s\b/g, "");
 
 async function offlineAnswer(question: string): Promise<string> {
   const ql = question.toLowerCase();
   const kw = ql.replace(/[^a-z0-9\s-]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w));
-  // crude stem so "blueberries" matches "blueberry" and "tomatoes" matches "tomato"
-  const word = kw.sort((a, b) => b.length - a.length)[0] ?? "";
-  const term = word.replace(/ies$/, "").replace(/oes$/, "o").replace(/(?<![su])s$/, "");
+  // most specific words first ("cider" before "makers"); crude stem so "blueberries" matches "blueberry"
+  const uniq = [...new Set(kw)];
+  const specific = uniq.filter((w) => !GENERIC.has(w));
+  const singles = [...uniq].sort((a, b) => Number(GENERIC.has(a)) - Number(GENERIC.has(b)) || b.length - a.length).slice(0, 3);
+  // try the specific words as a phrase first ("apple cider"), then one word at a time
+  const cands = specific.length > 1 ? [specific.slice(0, 3).join(" "), ...singles] : singles;
+  let word = cands[0] ?? "";
+  let term = stem(word);
   const lines: string[] = [];
   const link = (label: string, href: string) => `- [${label}](${href})`;
 
@@ -266,11 +274,20 @@ async function offlineAnswer(question: string): Promise<string> {
   }
   if (!term) return "I can help you find produce, growers, buyers, Buy BC products, programs and events. Try “Who sells blueberries in Abbotsford?” or “Buy BC apple cider”.";
 
-  const [listings, dir, bb] = (await Promise.all([runTool("search_listings", { query: term }), runTool("search_directory", { query: term }), runTool("search_buy_bc_products", { query: term })])) as [
+  type Found = [
     { title: string; grower: string; price: string; link: string }[],
     { total: number; results: { name: string; link: string }[] },
     { totalMatches: number; browseAll: string },
   ];
+  const search = async (t: string) => (await Promise.all([runTool("search_listings", { query: t }), runTool("search_directory", { query: t }), runTool("search_buy_bc_products", { query: t })])) as Found;
+  let [listings, dir, bb] = await search(term);
+  // nothing for the most specific word? fall back to the next candidate
+  for (const w of cands.slice(1)) {
+    if (listings.length || dir.total || bb.totalMatches) break;
+    [listings, dir, bb] = await search(stem(w));
+    word = w;
+    term = stem(w);
+  }
   if (listings.length) lines.push(`Marketplace listings for “${word}”:`, ...listings.slice(0, 5).map((l) => link(`${l.title} — ${l.grower} (${l.price})`, l.link)), "");
   if (dir.total) lines.push(`Directory matches (${dir.total}):`, ...dir.results.slice(0, 4).map((p) => link(p.name, p.link)), "");
   if (bb.totalMatches) lines.push(`${bb.totalMatches} Buy BC licensed products match — [browse them](${bb.browseAll}).`);

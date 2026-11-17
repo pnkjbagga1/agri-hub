@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Notice } from "@/components/ui";
 import { Field, FormError } from "@/components/forms";
 import { api, ClientApiError } from "@/lib/client";
+import { PasswordInput } from "@/components/security/PasswordInput";
 
 export function ForgotForm() {
   const [sent, setSent] = useState(false);
@@ -70,7 +71,7 @@ export function ResetForm() {
     >
       <FormError message={error} />
       <Field label="New password" error={field}>
-        <input name="password" type="password" minLength={10} required autoComplete="new-password" className="input" />
+        <PasswordInput />
       </Field>
       <Field label="Confirm password">
         <input name="confirm" type="password" minLength={10} required autoComplete="new-password" className="input" />
